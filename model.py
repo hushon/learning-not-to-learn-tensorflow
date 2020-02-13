@@ -28,7 +28,6 @@ class LNTL:
         '''Defines TensorFlow graph.'''
 
         args = self.args
-        sess = self.sess
 
         print(' [*] Building tensorflow graph')
 
@@ -106,7 +105,7 @@ class LNTL:
         train_init_op = self.train_init_op
 
         is_training = self.is_training
-        d_loss = self.d_loss 
+        d_loss = self.d_loss
         g_dice_score = self.g_dice_score
         g_loss = self.g_loss
         g_vars = self.g_vars

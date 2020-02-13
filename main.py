@@ -28,21 +28,18 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--phase', dest='phase', default='train', help='train, test')
-    parser.add_argument('--data_dir', dest='data_dir', default=None, help='directory of the dataset')
-    parser.add_argument('--log_dir', dest='log_dir', default='./logs', help='tf.summary log directory')
+    parser.add_argument('--data_dir', dest='data_dir', default='./dataset', help='directory of the dataset')
+    parser.add_argument('--log_dir', dest='log_dir', default='./logs', help='logs for TensorBoard')
     parser.add_argument('--ckpt_dir', dest='ckpt_dir', default='./checkpoint', help='checkpoint directory')
-    parser.add_argument('--max_epoch', dest='max_epoch', type=int, default=200, help='# of epoch')
-    parser.add_argument('--batch_size', dest='batch_size', type=int, default=1, help='# images in batch')
-    parser.add_argument('--image_size', dest='image_size', type=int, default=256, help='resize height/width to given image size')
-    parser.add_argument('--input_c_dim', dest='input_c_dim', type=int, default=1, help='# of input image channels')
-    parser.add_argument('--output_c_dim', dest='output_c_dim', type=int, default=1, help='# of output image channels')
-    parser.add_argument('--lr', dest='lr', type=float, default=0.0002, help='initial learning rate for adam')
+    parser.add_argument('--max_epoch', dest='max_epoch', type=int, default=100, help='maximum number of epoch')
+    parser.add_argument('--batch_size', dest='batch_size', type=int, default=1, help='batch size')
+    parser.add_argument('--image_size', dest='image_size', type=int, default=32, help='pixel size')
+    parser.add_argument('--input_c_dim', dest='input_c_dim', type=int, default=3, help='number of channels')
+    parser.add_argument('--lr', dest='lr', type=float, default=1e-4, help='learning rate')
     args = parser.parse_args()
 
-    '''Print argument values'''
-    print('====== Arguments ======')
-    for key in vars(args):
-        print('{} = {}'.format(key, vars(args)[key]))
-    print('=======================')
+    '''print args'''
+    for k, v in vars(args).items():
+        print('{} = {}'.format(k, v))
 
     main()
