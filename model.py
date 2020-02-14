@@ -6,7 +6,7 @@ from datetime import datetime
 
 import tensorflow as tf
 import numpy as np
-from tqdm import tqdm
+from tqdm import trange
 
 import utils
 import network
@@ -20,7 +20,6 @@ class LNTL:
 
         self.sess = sess
         self.args = args
-        self.dtype = dtype
 
         self._build_model()
 
@@ -32,16 +31,27 @@ class LNTL:
         print(' [*] Building tensorflow graph')
 
         '''main graph'''
-        datashape = [None, args.image_size, args.image_size, args.input_c_dim]
-        dim_class = 10
-        dim_bias = 3
-        input_image = tf.placeholder(tf.uint8, shape=datashape, name='input_image')
-        label_class = tf.placeholder(tf.uint8, shape=[None, dim_class], name='label_class')
-        label_bias = tf.placeholder(tf.uint8, shape=[None, dim_bias], name='label_bias')
+        input_image = tf.placeholder(tf.uint8,
+                                     shape=[None, args.image_size, args.image_size, args.input_c_dim],
+                                     name='input_image')
+        label_class = tf.placeholder(tf.uint8,
+                                     shape=[None, args.dim_class],
+                                     name='label_class')
+        label_bias = tf.placeholder(tf.uint8,
+                                    shape=[None, args.dim_bias],
+                                    name='label_bias')
+        is_training = tf.placeholder(tf.bool,
+                                     name='is_training')
 
-        feature = network.f(input_image, name='feature_extractor')
-        output_class, output_class_logits = network.g(feature, name='class_predictor')
-        output_bias, output_bias_logits = network.h(feature, name='bias_predictor')
+        feature = network.f(input_image,
+                            is_training=is_training,
+                            name='feature_extractor')
+        output_class, output_class_logits = network.g(feature,
+                                                      is_training=is_training,
+                                                      name='class_predictor')
+        output_bias, output_bias_logits = network.h(feature,
+                                                    is_training=is_training,
+                                                    name='bias_predictor')
 
         '''loss'''
         lambda_loss = 0.1
@@ -83,6 +93,7 @@ class LNTL:
         self.input_image = input_image
         self.label_class = label_class
         self.label_bias = label_bias
+        self.is_training = is_training
 
         self.train_op_classifier = train_op_classifier
         self.train_op_bias = train_op_bias
@@ -154,31 +165,35 @@ class LNTL:
         train_bias = np.array(train_bias)
         dataset.update({'train_bias': train_bias})
 
+        train_label = []
+        for x in dataset['train_label']:
+            train_label.append(np.eye(args.dim_class)[x])
+        train_label = np.array(train_label)
+        dataset.update({'train_label': train_label})
+
         ## training loop
-        for epoch in tqdm(range(global_epoch, args.max_epoch)):
+        for epoch in trange(self.global_epoch.eval(), args.max_epoch):
 
             for i in range(len(dataset['train_image'])):
 
+                feed_dict = {self.input_image: dataset['train_image'][i:i+args.batch_size],
+                             self.label_class: dataset['train_label'][i:i+args.batch_size],
+                             self.label_bias: dataset['train_bias'][i:i+args.batch_size],
+                             self.is_training: True}
+
                 # train step
-                sess.run(self.train_op_classifier,
-                         feed_dict={self.input_image: dataset['train_image'][i:i+1],
-                                    self.label_class: dataset['train_label'][i:i+1]})
-                sess.run(self.train_op_bias,
-                         feed_dict={self.input_image: dataset['train_image'][i:i+1],
-                                    self.label_bias: dataset['train_bias'][i:i+1]})
-                summary_str = sess.run(self.summary_op,
-                                       feed_dict={self.input_image: dataset['train_image'][i:i+1],
-                                                  self.label_class: dataset['train_label'][i:i+1],
-                                                  self.label_bias: dataset['train_bias'][i:i+1]})
+                _ = sess.run(self.train_op_classifier, feed_dict=feed_dict)
+                _ = sess.run(self.train_op_bias, feed_dict=feed_dict)
+                summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
 
                 # write summary
-                summary_writer.add_summary(summary_str, global_step)
+                summary_writer.add_summary(summary_str, self.global_step)
 
                 # increment global step
-                global_step = sess.run(increment_global_step)
+                sess.run(self.increment_global_step)
 
             # increment global epoch
-            global_epoch = sess.run(increment_global_epoch)
+            sess.run(self.increment_global_epoch)
 
     def test(self):
         args = self.args
@@ -191,13 +206,6 @@ class LNTL:
         fake_B = self.fake_B
         is_training = self.is_training
 
-        ## for profiling
-        if args.enable_profile:
-            from tensorflow.python.client import timeline
-            timeline_dir = os.path.normpath(args.timeline_dir)
-            if not os.path.exists(timeline_dir): os.makedirs(timeline_dir)
-
-        """Test pix2pix"""
         ## restore checkpoint or initialize.
         saver = tf.train.Saver(max_to_keep=1)
         load_dir = os.path.normpath(args.ckpt_dir)
@@ -207,56 +215,32 @@ class LNTL:
             sess.run(tf.global_variables_initializer())
             print(" [*] initialized variables")
 
-        ## load test dataset
-        # test_data_dir = os.path.join(args.data_dir, 'test/*.png')
-        # testset = data_getter.load_dataset(test_data_dir, resize=(args.image_size,args.image_size))
-        # test_data_dir = os.path.join(args.data_dir, 'test')
 
+        ## load datasets
         root = Tk()
-        test_data_dir = filedialog.askdirectory(title='Select folder containing feature images')
+        filepath = filedialog.askopenfilename(title='Select file', 
+                                              filetypes = (("numpy files","*.npy"),("all files","*.*")))
+        filepath = os.path.normpath(filepath)
         root.withdraw()
 
-        # testset = data_getter.load_dataset_v2(test_data_dir, resize=(args.image_size,args.image_size))
-        testset = Dataset().read_testset(test_data_dir, resize=(args.image_size, args.image_size)).dataset
-        testset = np.concatenate([testset['feature'], testset['label']], -1)
-        sess.run(test_init_op, feed_dict={data: testset})
+        dataset = np.load(filepath, allow_pickle=True, encoding='latin1')
+        dataset = dataset.item()
 
-        test_rate = 0.0
-        idx = 0
+        ## preprocess dataset
+        test_label = []
+        for x in dataset['test_label']:
+            test_label.append(np.eye(args.dim_class)[x])
+        test_label = np.array(test_label)
+        dataset.update({'test_label': test_label})
 
-        while True:
-            try:
-                starttime = time.time()
+        # run test
+        accuracy = []
+        for i in trange(len(dataset['test_image'])):
 
-                if args.enable_profile: 
-                    run_metadata = tf.RunMetadata()
-                    samples = sess.run(fake_B, feed_dict={is_training: True},
-                        options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
-                        run_metadata=run_metadata)
-                else: 
-                    samples = sess.run(fake_B, feed_dict={is_training: True})
+            feed_dict = {self.input_image: dataset['test_image'][i:i+args.batch_size],
+                         self.label_class: dataset['test_label'][i:i+args.batch_size],
+                         self.is_training: False}
 
-                #  stats
-                test_rate = 1000*(time.time()-starttime)
-                print("[Test] [%2d] %.2f ms/step" % (idx, test_rate))
-                if args.enable_profile:
-                    summary_writer_test.add_run_metadata(run_metadata, 'global_step_%d'%idx)
-                idx += 1
-
-                ## save images
-                samples = [utils.denormalize(img) for img in samples]
-                samples = np.concatenate(samples, axis=1)
-                save_dir = os.path.join('.', 'test')
-                save_path = os.path.join(save_dir, 'test_%04d.png' % idx)
-                # save_path = os.path.join(save_dir, '{}.png'.format(testset['name'][idx]))
-                if not os.path.exists(save_dir): os.makedirs(save_dir)
-                utils.save_img(samples, save_path)
-
-                if args.enable_profile:
-                    with open(os.path.join(timeline_dir, 'timeline_%d.json' % idx), 'w') as f:
-                        fetched_timeline = timeline.Timeline(run_metadata.step_stats)
-                        chrome_trace = fetched_timeline.generate_chrome_trace_format(show_memory=True)
-                        f.write(chrome_trace)
-
-            except tf.errors.OutOfRangeError:
-                break
+            # prediction
+            output = sess.run(self.output_class, feed_dict=feed_dict)
+            output = np.argmax(output, axis=-1)
