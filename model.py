@@ -1,19 +1,16 @@
 import os
 from tkinter import Tk, filedialog
 import time
-from glob import glob
-from datetime import datetime
 
 import tensorflow as tf
 import numpy as np
-from tqdm import trange
+from tqdm import tqdm, trange
 
 import utils
 import network
-import data_getter
 import ckptsaver
-import ops
-from dataset import Dataset
+
+import dataloader
 
 class LNTL:
     def __init__(self, sess, args):
@@ -44,12 +41,15 @@ class LNTL:
                                      name='is_training')
 
         feature = network.f(input_image,
+                            output_dim=32,
                             is_training=is_training,
                             name='feature_extractor')
         output_class, output_class_logits = network.g(feature,
+                                                      output_dim=args.dim_class,
                                                       is_training=is_training,
                                                       name='class_predictor')
         output_bias, output_bias_logits = network.h(feature,
+                                                    output_dim=args.dim_bias,
                                                     is_training=is_training,
                                                     name='bias_predictor')
 
@@ -109,19 +109,9 @@ class LNTL:
         """Train pix2pix"""
         sess = self.sess
         args = self.args
-        summary_writer_train = self.summary_writer_train
-        summary_writer_val = self.summary_writer_val
-
-        data = self.data
-        train_init_op = self.train_init_op
 
         is_training = self.is_training
-        d_loss = self.d_loss
-        g_dice_score = self.g_dice_score
-        g_loss = self.g_loss
-        g_vars = self.g_vars
-        d_train_op = self.d_train_op
-        g_train_op = self.g_train_op
+
         summary_op = self.summary_op
         global_step = self.global_step
         global_epoch = self.global_epoch
@@ -156,6 +146,8 @@ class LNTL:
         dataset = dataset.item()
 
         ## preprocess dataset
+        dataset = {k: v for k, v in dataset.items() if 'train' in k}
+
         train_bias = []
         for x in dataset['train_image']:
             r = x[..., 0].max()
@@ -171,14 +163,16 @@ class LNTL:
         train_label = np.array(train_label)
         dataset.update({'train_label': train_label})
 
+        dataset = dataloader.Dataloader().from_dict(dataset)
+
         ## training loop
-        for epoch in trange(self.global_epoch.eval(), args.max_epoch):
+        for _ in trange(self.global_epoch.eval(), args.max_epoch):
 
-            for i in range(len(dataset['train_image'])):
+            for batch in dataset.shuffle(None).iter(args.batch_size, False):
 
-                feed_dict = {self.input_image: dataset['train_image'][i:i+args.batch_size],
-                             self.label_class: dataset['train_label'][i:i+args.batch_size],
-                             self.label_bias: dataset['train_bias'][i:i+args.batch_size],
+                feed_dict = {self.input_image: batch['train_image'],
+                             self.label_class: batch['train_label'],
+                             self.label_bias: batch['train_bias'],
                              self.is_training: True}
 
                 # train step
@@ -195,15 +189,13 @@ class LNTL:
             # increment global epoch
             sess.run(self.increment_global_epoch)
 
+        # save checkpoint
+        ckptsaver.save_checkpoint(sess, saver, args.ckpt_dir, 'model', self.global_step)
+
     def test(self):
         args = self.args
         sess = self.sess
-        summary_writer_test = self.summary_writer_test
 
-        data = self.data
-        test_init_op = self.test_init_op
-
-        fake_B = self.fake_B
         is_training = self.is_training
 
         ## restore checkpoint or initialize.
@@ -215,8 +207,7 @@ class LNTL:
             sess.run(tf.global_variables_initializer())
             print(" [*] initialized variables")
 
-
-        ## load datasets
+        ## load dataset
         root = Tk()
         filepath = filedialog.askopenfilename(title='Select file', 
                                               filetypes = (("numpy files","*.npy"),("all files","*.*")))
@@ -227,20 +218,22 @@ class LNTL:
         dataset = dataset.item()
 
         ## preprocess dataset
-        test_label = []
-        for x in dataset['test_label']:
-            test_label.append(np.eye(args.dim_class)[x])
-        test_label = np.array(test_label)
-        dataset.update({'test_label': test_label})
+        dataset = {k: v for k, v in dataset.items() if 'test' in k}
+        dataset = dataloader.Dataloader().from_dict(dataset)
 
         # run test
         accuracy = []
-        for i in trange(len(dataset['test_image'])):
+        for batch in tqdm(dataset.iter(args.batch_size, False)):
 
-            feed_dict = {self.input_image: dataset['test_image'][i:i+args.batch_size],
-                         self.label_class: dataset['test_label'][i:i+args.batch_size],
+            feed_dict = {self.input_image: batch['test_image'],
+                         self.label_class: batch['test_label'],
                          self.is_training: False}
 
             # prediction
             output = sess.run(self.output_class, feed_dict=feed_dict)
             output = np.argmax(output, axis=-1)
+
+            # accuracy
+            accuracy.append(output == np.argmax(batch['test_label'], axis=-1))
+
+        print('test acc: {}'.format(np.mean(accuracy)))
