@@ -7,11 +7,11 @@ def main():
 
     # GPU memory growth must be enabled on GeForce RTX GPU systems due to tensorflow bug.
     # Reference: https://github.com/tensorflow/tensorflow/issues/24828
-'''
-    from tensorflow.python.client import device_lib
+    
+    '''from tensorflow.python.client import device_lib
     local_device_protos = device_lib.list_local_devices()
-    [device.name for device in local_device_protos if device.device_type is 'GPU']
-'''
+    [device.name for device in local_device_protos if device.device_type is 'GPU']'''
+
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
 
@@ -32,12 +32,14 @@ if __name__ == '__main__':
     parser.add_argument('--log_dir', dest='log_dir', default='./logs', help='log dir')
     parser.add_argument('--ckpt_dir', dest='ckpt_dir', default='./checkpoint', help='checkpoint dir')
     parser.add_argument('--max_epoch', dest='max_epoch', type=int, default=100, help='maximum epoch')
-    parser.add_argument('--batch_size', dest='batch_size', type=int, default=1, help='batch size')
-    parser.add_argument('--image_size', dest='image_size', type=int, default=32, help='pixel size')
+    parser.add_argument('--batch_size', dest='batch_size', type=int, default=200, help='batch size')
+    parser.add_argument('--image_size', dest='image_size', type=int, default=28, help='pixel size')
     parser.add_argument('--input_c_dim', dest='input_c_dim', type=int, default=3, help='number of channels')
     parser.add_argument('--dim_class', dest='dim_class', type=int, default=10, help='number of class categories')
     parser.add_argument('--dim_bias', dest='dim_bias', type=int, default=3, help='bias dimension')
     parser.add_argument('--lr', dest='lr', type=float, default=1e-4, help='learning rate')
+    parser.add_argument('--loss_lambda', dest='loss_lambda', type=float, default=0.0001, help='loss coefficient')
+
     args = parser.parse_args()
 
     '''print args'''

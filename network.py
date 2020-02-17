@@ -22,7 +22,7 @@ def batch_norm(_input, is_training, name=None):
     return tf.layers.batch_normalization(_input,
                                          momentum=0.99,
                                          epsilon=1e-3,
-                                         training=train,
+                                         training=is_training,
                                          fused=None,
                                          virtual_batch_size=None,
                                          name=name)
@@ -42,7 +42,7 @@ def avgpool(_input,
             pool_size=(2,2),
             strides=2,
             padding='same',
-            name=None)
+            name=None):
     return tf.layers.AveragePooling2D(pool_size=pool_size,
                                strides=strides,
                                padding=padding,
@@ -85,5 +85,5 @@ def h(_input, output_dim, is_training, name=None):
         x = tf.nn.relu(x, name='00_relu')
         x = conv2d(x, output_dim, (3,3), name='01_conv')
         x = avgpool(x, (14,14), 1, 'valid', name='01_avgpool')
-        px = tf.nn.softmax(x, axis=-1, name='01_softmax')
+        px = tf.nn.tanh(x, name='01_tanh')
         return px, x

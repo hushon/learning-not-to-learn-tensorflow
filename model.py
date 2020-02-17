@@ -6,7 +6,6 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm, trange
 
-import utils
 import network
 import ckptsaver
 
@@ -28,13 +27,13 @@ class LNTL:
         print(' [*] Building tensorflow graph')
 
         '''main graph'''
-        input_image = tf.placeholder(tf.uint8,
+        input_image = tf.placeholder(tf.float32,
                                      shape=[None, args.image_size, args.image_size, args.input_c_dim],
                                      name='input_image')
-        label_class = tf.placeholder(tf.uint8,
+        label_class = tf.placeholder(tf.float32,
                                      shape=[None, args.dim_class],
                                      name='label_class')
-        label_bias = tf.placeholder(tf.uint8,
+        label_bias = tf.placeholder(tf.float32,
                                     shape=[None, args.dim_bias],
                                     name='label_bias')
         is_training = tf.placeholder(tf.bool,
@@ -54,15 +53,12 @@ class LNTL:
                                                     name='bias_predictor')
 
         '''loss'''
-        lambda_loss = 0.1
-        with tf.variable_scope("loss"):
+        with tf.variable_scope("loss_functions"):
             loss_classifier = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_class,
                 logits=output_class_logits)
-            loss_bias = tf.nn.softmax_cross_entropy_with_logits(
-                labels=label_bias,
-                logits=output_bias_logits)
-            loss = loss_classifier - lambda_loss*loss_bias
+            loss_bias = tf.reduce_mean(tf.abs(label_bias - output_bias))
+            loss = loss_classifier - args.loss_lambda*loss_bias
 
         '''optimizer'''
         f_vars = [var for var in tf.trainable_variables() if 'feature_extractor' in var.name]
@@ -72,7 +68,7 @@ class LNTL:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             train_op_classifier = tf.train.AdamOptimizer(args.lr).minimize(loss, var_list=f_vars + g_vars)
-            train_op_bias = tf.train.AdamOptimizer(args.lr).maximize(loss, var_list=h_vars)
+            train_op_bias = tf.train.AdamOptimizer(args.lr).minimize(loss_bias, var_list=h_vars)
 
         global_step = tf.get_variable('global_step', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
         global_epoch = tf.get_variable('global_epoch', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
@@ -81,7 +77,11 @@ class LNTL:
 
         '''Define summary'''
         input_image_summary = tf.summary.image("input_image", input_image)
+
+        loss_classifier_summary = tf.summary.scalar("loss_classifier", tf.reduce_mean(loss_classifier))
+        loss_bias_summary = tf.summary.scalar("loss_bias", tf.reduce_mean(loss_bias))
         loss_summary = tf.summary.scalar("loss", tf.reduce_mean(loss))
+
         with tf.variable_scope("f_weights"):
             f_weights_summary = tf.summary.merge([tf.summary.histogram(var.name, var) for var in f_vars])
         with tf.variable_scope("g_weights"):
@@ -148,11 +148,13 @@ class LNTL:
         ## preprocess dataset
         dataset = {k: v for k, v in dataset.items() if 'train' in k}
 
+        dataset['train_image'] = dataset['train_image'] / 127.5 - 1.0
+
         train_bias = []
         for x in dataset['train_image']:
-            r = x[..., 0].max()
-            g = x[..., 1].max()
-            b = x[..., 2].max()
+            r = x[..., 0].max() / 127.5 - 1.0
+            g = x[..., 1].max() / 127.5 - 1.0
+            b = x[..., 2].max() / 127.5 - 1.0
             train_bias.append([r,g,b])
         train_bias = np.array(train_bias)
         dataset.update({'train_bias': train_bias})
@@ -181,7 +183,7 @@ class LNTL:
                 summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
 
                 # write summary
-                summary_writer.add_summary(summary_str, self.global_step)
+                summary_writer.add_summary(summary_str, self.global_step.eval())
 
                 # increment global step
                 sess.run(self.increment_global_step)
@@ -219,6 +221,7 @@ class LNTL:
 
         ## preprocess dataset
         dataset = {k: v for k, v in dataset.items() if 'test' in k}
+        dataset['test_image'] = dataset['test_image'] / 127.5 - 1.0
         dataset = dataloader.Dataloader().from_dict(dataset)
 
         # run test
