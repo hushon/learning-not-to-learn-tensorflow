@@ -8,7 +8,7 @@ from tqdm import tqdm, trange
 
 import network
 import ckptsaver
-
+import utils
 import dataloader
 
 class LNTL:
@@ -34,7 +34,7 @@ class LNTL:
                                      shape=[None, args.dim_class],
                                      name='label_class')
         label_bias = tf.placeholder(tf.float32,
-                                    shape=[None, args.dim_bias],
+                                    shape=[None, 3, args.dim_bias],
                                     name='label_bias')
         is_training = tf.placeholder(tf.bool,
                                      name='is_training')
@@ -47,28 +47,59 @@ class LNTL:
                                                       output_dim=args.dim_class,
                                                       is_training=is_training,
                                                       name='class_predictor')
-        output_bias, output_bias_logits = network.h(feature,
+        output_bias_r, output_bias_r_logits = network.h(feature,
                                                     output_dim=args.dim_bias,
                                                     is_training=is_training,
-                                                    name='bias_predictor')
+                                                    name='bias_r_predictor')
+        output_bias_r, output_bias_r_logits = network.h(feature,
+                                                    output_dim=args.dim_bias,
+                                                    is_training=is_training,
+                                                    name='bias_r_predictor')
+        output_bias_g, output_bias_g_logits = network.h(feature,
+                                                    output_dim=args.dim_bias,
+                                                    is_training=is_training,
+                                                    name='bias_g_predictor')
+        output_bias_b, output_bias_b_logits = network.h(feature,
+                                                    output_dim=args.dim_bias,
+                                                    is_training=is_training,
+                                                    name='bias_b_predictor')
 
         '''loss'''
         with tf.variable_scope("loss_functions"):
             loss_classifier = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_class,
                 logits=output_class_logits)
-            loss_bias = tf.reduce_mean(tf.abs(label_bias - output_bias))
-            loss = loss_classifier - args.loss_lambda*loss_bias
+
+            loss_mi = tf.reduce_mean(output_bias_r*tf.log(output_bias_r)) \
+                    + tf.reduce_mean(output_bias_g*tf.log(output_bias_g)) \
+                    + tf.reduce_mean(output_bias_b*tf.log(output_bias_b))
+
+            loss_bias_r = tf.nn.softmax_cross_entropy_with_logits(
+                labels=label_bias[:, 0],
+                logits=output_bias_r_logits)
+            loss_bias_g = tf.nn.softmax_cross_entropy_with_logits(
+                labels=label_bias[:, 1],
+                logits=output_bias_g_logits)
+            loss_bias_b = tf.nn.softmax_cross_entropy_with_logits(
+                labels=label_bias[:, 2],
+                logits=output_bias_b_logits)
+            loss_bias = loss_bias_r + loss_bias_g + loss_bias_b
+
+            loss = loss_classifier \
+                 + args.loss_lambda*loss_mi \
+                 - args.loss_mu*loss_bias
 
         '''optimizer'''
         f_vars = [var for var in tf.trainable_variables() if 'feature_extractor' in var.name]
         g_vars = [var for var in tf.trainable_variables() if 'class_predictor' in var.name]
-        h_vars = [var for var in tf.trainable_variables() if 'bias_predictor' in var.name]
+        h_vars = [var for var in tf.trainable_variables() if 'bias_r_predictor' in var.name
+                                                          or 'bias_g_predictor' in var.name
+                                                          or 'bias_b_predictor' in var.name]
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             train_op_classifier = tf.train.AdamOptimizer(args.lr).minimize(loss, var_list=f_vars + g_vars)
-            train_op_bias = tf.train.AdamOptimizer(args.lr).minimize(loss_bias, var_list=h_vars)
+            train_op_bias = tf.train.AdamOptimizer(args.lr).minimize(-loss, var_list=h_vars)
 
         global_step = tf.get_variable('global_step', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
         global_epoch = tf.get_variable('global_epoch', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
@@ -79,6 +110,7 @@ class LNTL:
         input_image_summary = tf.summary.image("input_image", input_image)
 
         loss_classifier_summary = tf.summary.scalar("loss_classifier", tf.reduce_mean(loss_classifier))
+        loss_bias_summary = tf.summary.scalar("loss_mi", tf.reduce_mean(loss_mi))
         loss_bias_summary = tf.summary.scalar("loss_bias", tf.reduce_mean(loss_bias))
         loss_summary = tf.summary.scalar("loss", tf.reduce_mean(loss))
 
@@ -152,9 +184,9 @@ class LNTL:
 
         train_bias = []
         for x in dataset['train_image']:
-            r = x[..., 0].max() / 127.5 - 1.0
-            g = x[..., 1].max() / 127.5 - 1.0
-            b = x[..., 2].max() / 127.5 - 1.0
+            r = np.eye(args.dim_bias)[utils.quantize(x[..., 0].max())]
+            g = np.eye(args.dim_bias)[utils.quantize(x[..., 1].max())]
+            b = np.eye(args.dim_bias)[utils.quantize(x[..., 2].max())]
             train_bias.append([r,g,b])
         train_bias = np.array(train_bias)
         dataset.update({'train_bias': train_bias})

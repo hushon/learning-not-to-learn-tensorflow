@@ -84,6 +84,7 @@ def h(_input, output_dim, is_training, name=None):
         x = batch_norm(x, is_training, name='00_batchnorm')
         x = tf.nn.relu(x, name='00_relu')
         x = conv2d(x, output_dim, (3,3), name='01_conv')
-        x = avgpool(x, (14,14), 1, 'valid', name='01_avgpool')
-        px = tf.nn.tanh(x, name='01_tanh')
+        x = avgpool(x, (14,14), output_dim, 'valid', name='01_avgpool')
+        x = tf.layers.flatten(x, name='01_flatten')
+        px = tf.nn.softmax(x, axis=-1, name='01_softmax')
         return px, x
