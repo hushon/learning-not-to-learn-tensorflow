@@ -1,19 +1,15 @@
 # learning-not-to-learn-tensorflow
- 
-## Introduction
-
-![learning-not-to-learn-figure](./figure1.png)
 
 This repo is an unofficial TensorFlow implementation of -- [*Learning Not to Learn: 
 Training Deep Neural Networks with Biased Data (CVPR 2019)*](https://arxiv.org/abs/1812.10352)  
 If you are looking for the official PyTorch source from the authors, you may redirect to [github.com/feidfoe/learning-not-to-learn](https://github.com/feidfoe/learning-not-to-learn)
 
+## Introduction
 
-This code demonstrates unlearning of bias from an MNIST classification model.  
-The training dataset used in demo is injected with bias such that the class category which an image belong has direct correlation between its color, meanwhile the test set does not.  
-The authors suggest a novel training method so that the model learns from the training set but unlearns from the bias.  
-The key ideas of the method are: adoption of a bias prediction model, 
-and a regularizing loss function based on mutual information between feature embeddings and bias.
+![learning-not-to-learn-figure](./figure1.png)
+
+This code demonstrates unlearning of bias from an MNIST classification model. The training dataset used in demo is injected with bias such that the class category which an image belong has direct correlation between its color, meanwhile the test set does not.  
+The authors suggest a novel training method so that the model learns from the training set but unlearns from the bias. The key ideas of the method are: adoption of an additional bias prediction model, and a regularizing loss function based on mutual information between feature embeddings and bias.
 
 ## Setup
 - Python 3
