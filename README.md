@@ -8,7 +8,6 @@ This repo is an unofficial TensorFlow implementation of -- [*Learning Not to Lea
 Training Deep Neural Networks with Biased Data (CVPR 2019)*](https://arxiv.org/abs/1812.10352)  
 If you are looking for the official PyTorch source from the authors, you may redirect to [github.com/feidfoe/learning-not-to-learn](https://github.com/feidfoe/learning-not-to-learn)
 
-![Colored-MNIST](./colored-mnist-example.png)
 
 This code demonstrates unlearning of bias from an MNIST classification model.  
 The training dataset used in demo is injected with bias such that the class category which an image belong has direct correlation between its color, meanwhile the test set does not.  
@@ -22,6 +21,8 @@ and a regularizing loss function based on mutual information between feature emb
 - tqdm
 
 ## Download Dataset
+![Colored-MNIST](./colored-mnist-example.png)
+
 [Colored-MNIST dataset](https://drive.google.com/file/d/11K-GmFD5cg3_KTtyBRkj9VBEnHl-hx_Q/view?usp=sharing)  
 Find more about the dataset in the authors' paper.  
 
