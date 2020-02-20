@@ -39,7 +39,7 @@ if __name__ == '__main__':
     parser.add_argument('--dim_bias', dest='dim_bias', type=int, default=8, help='bias dimension')
     parser.add_argument('--lr', dest='lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--loss_lambda', dest='loss_lambda', type=float, default=0.01, help='lambda coeff')
-    parser.add_argument('--loss_my', dest='loss_mu', type=float, default=1.0, help='mu coeff')
+    parser.add_argument('--loss_mu', dest='loss_mu', type=float, default=1.0, help='mu coeff')
 
     args = parser.parse_args()
 
