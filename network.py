@@ -57,7 +57,7 @@ def fc(_input, units, name=None):
                            name=name)(_input)
 
 def f(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name) as scope:
+    with tf.variable_scope(name):
         x = batch_norm(_input, is_training=is_training, name='00_batchnorm')
         x = conv2d(x, 32, (5,5), name='00_conv')
         x = tf.nn.relu(x, name='00_relu')
@@ -67,7 +67,7 @@ def f(_input, output_dim, is_training, name=None):
         return feat_out
 
 def g(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name) as scope:
+    with tf.variable_scope(name):
         x = conv2d(_input, 64, (3,3), strides=2, name='00_conv')
         x = tf.nn.relu(x, name='00_relu')
         x = conv2d(x, 64, (3,3), name='01_conv')
@@ -79,12 +79,13 @@ def g(_input, output_dim, is_training, name=None):
         return y_low, x
 
 def h(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name) as scope:
+    with tf.variable_scope(name):
         x = conv2d(_input, 32, (3,3), name='00_conv')
         x = batch_norm(x, is_training, name='00_batchnorm')
         x = tf.nn.relu(x, name='00_relu')
         x = conv2d(x, output_dim, (3,3), name='01_conv')
-        x = avgpool(x, (14,14), output_dim, 'valid', name='01_avgpool')
+        # x = avgpool(x, (14,14), output_dim, 'valid', name='01_avgpool')
         x = tf.layers.flatten(x, name='01_flatten')
+        x = fc(x, output_dim, name='01_dense')
         px = tf.nn.softmax(x, axis=-1, name='01_softmax')
         return px, x

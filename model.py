@@ -75,7 +75,7 @@ class LNTL:
                 logits=output_bias_g_logits)
                 + tf.nn.softmax_cross_entropy_with_logits(
                 labels=output_bias_b,
-                logits=output_bias_b_logits)) / 3
+                logits=output_bias_b_logits)) / 3.0
 
             loss_bias_r = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_bias[:, 0],
@@ -86,11 +86,9 @@ class LNTL:
             loss_bias_b = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_bias[:, 2],
                 logits=output_bias_b_logits)
-            loss_bias = (loss_bias_r + loss_bias_g + loss_bias_b) / 3
+            loss_bias = loss_bias_r + loss_bias_g + loss_bias_b
 
-            loss = loss_classifier \
-                 + args.loss_lambda*loss_mi \
-                 - args.loss_mu*loss_bias
+            loss_feature = loss_classifier + args.loss_lambda*loss_mi - args.loss_mu*loss_bias
 
         '''accuracy'''
         acc_classifier = tf.reduce_mean(tf.cast(tf.equal(
@@ -117,12 +115,11 @@ class LNTL:
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             train_op_classifier = tf.train.AdamOptimizer(args.lr)\
-                .minimize(loss_classifier + args.loss_lambda*loss_mi, var_list=f_vars + g_vars)
-            train_op_bias = tf.group(
-                tf.train.AdamOptimizer(args.lr)\
-                    .minimize(args.loss_mu*loss_bias, var_list=h_vars),
-                tf.train.AdamOptimizer(args.lr)\
-                    .minimize(-args.loss_mu*loss_bias + loss_classifier, var_list=f_vars))
+                .minimize(loss_classifier, var_list=g_vars)
+            train_op_bias = tf.train.AdamOptimizer(args.lr)\
+                .minimize(loss_bias, var_list=h_vars)
+            train_op_feature = tf.train.AdamOptimizer(args.lr)\
+                .minimize(loss_feature, var_list=f_vars)
 
         global_step = tf.get_variable('global_step', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
         global_epoch = tf.get_variable('global_epoch', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
@@ -135,7 +132,6 @@ class LNTL:
         loss_classifier_summary = tf.summary.scalar("loss_classifier", tf.reduce_mean(loss_classifier))
         loss_bias_summary = tf.summary.scalar("loss_mi", tf.reduce_mean(loss_mi))
         loss_bias_summary = tf.summary.scalar("loss_bias", tf.reduce_mean(loss_bias))
-        loss_summary = tf.summary.scalar("loss", tf.reduce_mean(loss))
 
         acc_classifier_summary = tf.summary.scalar("acc_classifier", acc_classifier)
         acc_bias_summary = tf.summary.scalar("acc_bias", acc_bias)
@@ -158,6 +154,7 @@ class LNTL:
 
         self.train_op_classifier = train_op_classifier
         self.train_op_bias = train_op_bias
+        self.train_op_feature = train_op_feature
 
         self.summary_op = summary_op
 
@@ -257,6 +254,7 @@ class LNTL:
                 # train step
                 _ = sess.run(self.train_op_classifier, feed_dict=feed_dict)
                 _ = sess.run(self.train_op_bias, feed_dict=feed_dict)
+                _ = sess.run(self.train_op_feature, feed_dict=feed_dict)
                 summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
 
                 # write summary
@@ -304,14 +302,15 @@ class LNTL:
 
         ## preprocess dataset
         dataset = {k: v for k, v in dataset.items() if 'test' in k}
-        dataset['test_image'] = dataset['test_image']
-        dataset = dataloader.Dataloader().from_dict(dataset)
+        testset = dataloader.Dataloader().from_dict(dataset)
 
         # run test
-        accuracy = []
-        pred_result = []
-        pred_feature = []
-        for batch in tqdm(dataset.iter(args.batch_size, False)):
+        pred_data = {"accuracy": [],
+                     "result": [],
+                     "feature": [],
+                     "label": dataset["test_label"]}
+
+        for batch in tqdm(testset.iter(args.batch_size, False)):
 
             feed_dict = {self.input_image: batch['test_image'],
                          self.is_training: False}
@@ -320,13 +319,13 @@ class LNTL:
             output = sess.run(self.output_class, feed_dict=feed_dict)
             output_feature = sess.run(self.feature, feed_dict=feed_dict)
 
-            accuracy.append(np.argmax(output, axis=-1) == batch['test_label'])
-            pred_result.append(output)
-            pred_feature.append(output_feature)
+            pred_data["accuracy"].append(np.argmax(output, axis=-1) == batch['test_label'])
+            pred_data["result"].append(output)
+            pred_data["feature"].append(output_feature)
+
+        pred_data["result"] = np.concatenate(pred_data["result"], axis=0)
+        pred_data["feature"] = np.concatenate(pred_data["feature"], axis=0)
+        print('test acc: {}'.format(np.mean(pred_data["accuracy"])))
 
         # save data
-        save_data = {'pred_result': np.concatenate(pred_result, axis=0),
-                     'pred_feature': np.concatenate(pred_feature, axis=0)}
-        np.save('./save_data.npy', save_data)
-
-        print('test acc: {}'.format(np.mean(accuracy)))
+        np.save('./pred_data.npy', pred_data)

@@ -1,2 +1,6 @@
-.ipynb_checkpoints
-.pyc
+checkpoint/
+dataset/
+logs/
+*.ipynb_checkpoints
+*.pyc
+*.npy
