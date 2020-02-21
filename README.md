@@ -19,7 +19,7 @@ The authors suggest a novel training method such that a classifier model learns 
 ## Download Dataset
 ![Colored-MNIST](./colored-mnist-example.png)
 
-[Download Colored-MNIST dataset](https://drive.google.com/file/d/11K-GmFD5cg3_KTtyBRkj9VBEnHl-hx_Q/view?usp=sharing)  
+[Download Colored-MNIST dataset](https://drive.google.com/file/d/1NSv4RCSHjcHois3dXjYw_PaLIoVlLgXu/view?usp=sharing)  
 Please refer to the paper for more information on the dataset.  
 
 ## Train model
