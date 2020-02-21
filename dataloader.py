@@ -64,3 +64,7 @@ class Dataloader:
     def iter(self, batch_size: int, drop_remainder: bool):
         for batch_index in ichunks(self.__index, batch_size, drop_remainder):
             yield {k: v[batch_index] for k, v in self.__dataset.items()}
+
+    def head(self, batch_size: int):
+        batch_index = next(ichunks(self.__index, batch_size, False))
+        return {k: v[batch_index] for k, v in self.__dataset.items()}

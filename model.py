@@ -26,7 +26,10 @@ class LNTL:
 
         '''main graph'''
         input_image = tf.placeholder(tf.float32,
-                                     shape=[None, args.image_size, args.image_size, args.input_c_dim],
+                                     shape=[None,
+                                            args.image_size,
+                                            args.image_size,
+                                            args.input_c_dim],
                                      name='input_image')
         label_class = tf.placeholder(tf.float32,
                                      shape=[None, args.dim_class],
@@ -119,8 +122,7 @@ class LNTL:
                 tf.train.AdamOptimizer(args.lr)\
                     .minimize(args.loss_mu*loss_bias, var_list=h_vars),
                 tf.train.AdamOptimizer(args.lr)\
-                    .minimize(-args.loss_mu*loss_bias + loss_classifier, var_list=f_vars)
-            )
+                    .minimize(-args.loss_mu*loss_bias + loss_classifier, var_list=f_vars))
 
         global_step = tf.get_variable('global_step', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
         global_epoch = tf.get_variable('global_epoch', dtype=tf.int32, initializer=tf.constant(0), trainable=False)
@@ -181,7 +183,13 @@ class LNTL:
         saver = tf.train.Saver(max_to_keep=1)
 
         # summary writer
-        summary_writer = tf.summary.FileWriter(os.path.normpath(args.log_dir), sess.graph)
+        summary_writer = tf.summary.FileWriter(
+            os.path.join(os.path.normpath(args.log_dir), 'train'),
+            sess.graph)
+
+        summary_writer_val = tf.summary.FileWriter(
+            os.path.join(os.path.normpath(args.log_dir), 'val'),
+            sess.graph)
 
         ## restore checkpoint or initialize.
         load_dir = os.path.normpath(args.ckpt_dir)
@@ -197,35 +205,49 @@ class LNTL:
         ## load datasets
         filepath = utils.ask_openfile(("numpy files","*.npy"))
 
-        dataset = np.load(filepath, allow_pickle=True, encoding='latin1')
-        dataset = dataset.item()
+        dataset = np.load(filepath, allow_pickle=True, encoding='latin1').item()
+
+        trainset = {k: v for k, v in dataset.items() if 'train' in k}
+        testset = {k: v for k, v in dataset.items() if 'test' in k}
 
         ## preprocess dataset
-        dataset = {k: v for k, v in dataset.items() if 'train' in k}
-
-        dataset['train_image'] = dataset['train_image']
-
         train_bias = []
-        for x in dataset['train_image']:
+        for x in trainset['train_image']:
             r = np.eye(args.dim_bias)[utils.quantize(x[..., 0].max())]
             g = np.eye(args.dim_bias)[utils.quantize(x[..., 1].max())]
             b = np.eye(args.dim_bias)[utils.quantize(x[..., 2].max())]
             train_bias.append([r,g,b])
         train_bias = np.array(train_bias)
-        dataset.update({'train_bias': train_bias})
+        trainset.update({'train_bias': train_bias})
 
         train_label = []
-        for x in dataset['train_label']:
+        for x in trainset['train_label']:
             train_label.append(np.eye(args.dim_class)[x])
         train_label = np.array(train_label)
-        dataset.update({'train_label': train_label})
+        trainset.update({'train_label': train_label})
 
-        dataset = dataloader.Dataloader().from_dict(dataset)
+        test_bias = []
+        for x in testset['test_image']:
+            r = np.eye(args.dim_bias)[utils.quantize(x[..., 0].max())]
+            g = np.eye(args.dim_bias)[utils.quantize(x[..., 1].max())]
+            b = np.eye(args.dim_bias)[utils.quantize(x[..., 2].max())]
+            test_bias.append([r,g,b])
+        test_bias = np.array(test_bias)
+        testset.update({'test_bias': test_bias})
+
+        test_label = []
+        for x in testset['test_label']:
+            test_label.append(np.eye(args.dim_class)[x])
+        test_label = np.array(test_label)
+        testset.update({'test_label': test_label})
+
+        trainset = dataloader.Dataloader().from_dict(trainset)
+        testset = dataloader.Dataloader().from_dict(testset)
 
         ## training loop
         for _ in trange(self.global_epoch.eval(), args.max_epoch):
 
-            for batch in dataset.shuffle(None).iter(args.batch_size, False):
+            for batch in trainset.shuffle(None).iter(args.batch_size, False):
 
                 feed_dict = {self.input_image: batch['train_image'],
                              self.label_class: batch['train_label'],
@@ -243,11 +265,21 @@ class LNTL:
                 # increment global step
                 sess.run(self.increment_global_step)
 
+            # validation summary
+            if self.global_epoch.eval() % 5 == 0:
+                batch = testset.shuffle(None).head(args.batch_size)
+                feed_dict = {self.input_image: batch['test_image'],
+                             self.label_class: batch['test_label'],
+                             self.label_bias: batch['test_bias'],
+                             self.is_training: False}
+                summary_str = sess.run(self.summary_op, feed_dict=feed_dict)
+                summary_writer_val.add_summary(summary_str, self.global_step.eval())
+
             # increment global epoch
             sess.run(self.increment_global_epoch)
 
         # save checkpoint
-        ckptsaver.save_checkpoint(sess, saver, args.ckpt_dir, 'model', self.global_step)
+        ckptsaver.save_checkpoint(sess, saver, args.ckpt_dir, 'model', self.global_epoch)
 
     def test(self):
         args = self.args
@@ -291,7 +323,7 @@ class LNTL:
             accuracy.append(np.argmax(output, axis=-1) == batch['test_label'])
             pred_result.append(output)
             pred_feature.append(output_feature)
-        
+
         # save data
         save_data = {'pred_result': np.concatenate(pred_result, axis=0),
                      'pred_feature': np.concatenate(pred_feature, axis=0)}
