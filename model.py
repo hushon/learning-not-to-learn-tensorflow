@@ -38,9 +38,6 @@ class LNTL:
         label_bias = tf.placeholder(tf.float32,
                                     shape=[None, 3, 14, 14, args.dim_bias],
                                     name='label_bias')
-        # label_bias = tf.placeholder(tf.float32,
-        #                             shape=[None, 3, args.dim_bias],
-        #                             name='label_bias')
         is_training = tf.placeholder(tf.bool,
                                      name='is_training')
         loss_lambda = tf.placeholder(tf.float32,
@@ -88,16 +85,17 @@ class LNTL:
                                                 logits=output_bias_b_logits))) / 3.0
 
         with tf.variable_scope("loss_bias"):
-            loss_bias_r = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+            loss_bias_r = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_bias[:, 0],
-                logits=output_bias_r_logits))
-            loss_bias_g = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+                logits=output_bias_r_logits)
+            loss_bias_g = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_bias[:, 1],
-                logits=output_bias_g_logits))
-            loss_bias_b = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+                logits=output_bias_g_logits)
+            loss_bias_b = tf.nn.softmax_cross_entropy_with_logits(
                 labels=label_bias[:, 2],
-                logits=output_bias_b_logits))
-            loss_bias = loss_bias_r + loss_bias_g + loss_bias_b
+                logits=output_bias_b_logits)
+            loss_bias_local = loss_bias_r + loss_bias_g + loss_bias_b
+            loss_bias = tf.reduce_mean(loss_bias_local)
 
         with tf.variable_scope("l2_weight_decay"):
             loss_l2_reg = tf.reduce_sum([tf.nn.l2_loss(var) for var in tf.trainable_variables()])
@@ -129,22 +127,18 @@ class LNTL:
         
         assert len(f_vars) > 0 and len(g_vars) > 0 and len(h_vars) > 0
 
-        optimizer1 = tf.train.AdamOptimizer(args.lr)
-        optimizer2 = tf.train.AdamOptimizer(args.lr)
-        # decaying_lr = tf.train.exponential_decay(args.lr,
-        #                 global_step=global_step,
-        #                 decay_steps=40,
-        #                 decay_rate=0.9)
-        # optimizer1 = tf.train.MomentumOptimizer(decaying_lr, momentum=0.9)
-        # optimizer2 = tf.train.MomentumOptimizer(decaying_lr, momentum=0.9)
+        decaying_lr = tf.train.exponential_decay(args.lr,
+                        global_step=global_epoch,
+                        decay_steps=40,
+                        decay_rate=0.9)
+        optimizer1 = tf.train.MomentumOptimizer(decaying_lr, momentum=0.9)
+        optimizer2 = tf.train.MomentumOptimizer(decaying_lr, momentum=0.9)
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.train_op_classifier = optimizer1.minimize(loss_classifier + loss_lambda*loss_mi + args.weight_decay*loss_l2_reg, var_list=g_vars + f_vars)
-            # gradients = optimizer2.compute_gradients(loss_bias + args.weight_decay*loss_l2_reg, var_list=f_vars + h_vars)
-            # gradients = [(-grad, var) if 'feature_extractor' in var.name else (grad, var) for (grad, var) in gradients]
-            # self.train_op_bias = optimizer2.apply_gradients(gradients)
-            # self.train_op_classifier = optimizer1.minimize(loss_classifier + loss_lambda*loss_mi - loss_lambda*loss_bias + args.weight_decay*loss_l2_reg, var_list=g_vars + f_vars)
-            self.train_op_bias = optimizer2.minimize(loss_bias + args.weight_decay*loss_l2_reg, var_list=h_vars)
+            gradients = optimizer2.compute_gradients(loss_bias + args.weight_decay*loss_l2_reg, var_list=f_vars + h_vars)
+            gradients = [(-0.1*grad, var) if 'feature_extractor' in var.name else (grad, var) for (grad, var) in gradients]
+            self.train_op_bias = optimizer2.apply_gradients(gradients)
 
         increment_global_step = tf.assign_add(global_step, 1)
         increment_global_epoch = tf.assign_add(global_epoch, 1)
@@ -227,16 +221,6 @@ class LNTL:
         train_bias = np.array(train_bias)
         trainset.update({'train_bias': train_bias})
 
-        # train_bias = []
-        # for x in trainset['train_image']:
-        #     r = np.eye(args.dim_bias)[utils.quantize(x[..., 0].max())]
-        #     g = np.eye(args.dim_bias)[utils.quantize(x[..., 1].max())]
-        #     b = np.eye(args.dim_bias)[utils.quantize(x[..., 2].max())]
-        #     train_bias.append([r,g,b])
-        # train_bias = np.array(train_bias)
-        # trainset.update({'train_bias': train_bias})
-
-
         train_label = []
         for x in trainset['train_label']:
             train_label.append(np.eye(args.dim_class)[x])
@@ -252,16 +236,6 @@ class LNTL:
             test_bias.append([r,g,b])
         test_bias = np.array(test_bias)
         testset.update({'test_bias': test_bias})
-
-        # test_bias = []
-        # for x in testset['test_image']:
-        #     r = np.eye(args.dim_bias)[utils.quantize(x[..., 0].max())]
-        #     g = np.eye(args.dim_bias)[utils.quantize(x[..., 1].max())]
-        #     b = np.eye(args.dim_bias)[utils.quantize(x[..., 2].max())]
-        #     test_bias.append([r,g,b])
-        # test_bias = np.array(test_bias)
-        # testset.update({'test_bias': test_bias})
-
 
         test_label = []
         for x in testset['test_label']:
@@ -348,7 +322,7 @@ class LNTL:
                      "feature": [],
                      "label": dataset["test_label"]}
 
-        for batch in tqdm(testset.iter(args.batch_size, False)):
+        for batch in tqdm(testset.iter(args.batch_size, True)):
 
             feed_dict = {self.input_image: batch['test_image'],
                          self.is_training: False}

@@ -30,7 +30,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--phase', dest='phase', default='train', help='train, test')
     parser.add_argument('--train_baseline', dest='train_baseline', action='store_true', help='train baseline model')
-    parser.add_argument('--data_dir', dest='data_dir', default='./dataset/colored_mnist/DATASET_FILENAME.npy', help='dataset dir')
+    parser.add_argument('--data_dir', dest='data_dir', default=None, help='dataset dir')
     parser.add_argument('--log_dir', dest='log_dir', default='./logs/', help='log dir')
     parser.add_argument('--ckpt_dir', dest='ckpt_dir', default='./checkpoint/', help='checkpoint dir')
     parser.add_argument('--max_epoch', dest='max_epoch', type=int, default=100, help='maximum epoch')
@@ -38,13 +38,14 @@ if __name__ == '__main__':
     parser.add_argument('--image_size', dest='image_size', type=int, default=28, help='pixel size')
     parser.add_argument('--input_c_dim', dest='input_c_dim', type=int, default=3, help='number of channels')
     parser.add_argument('--dim_class', dest='dim_class', type=int, default=10, help='number of class categories')
-    parser.add_argument('--dim_bias', dest='dim_bias', type=int, default=8, help='bias dimension')
+    parser.add_argument('--dim_bias', dest='dim_bias', type=int, default=16, help='bias dimension')
     parser.add_argument('--lr', dest='lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--loss_lambda', dest='loss_lambda', type=float, default=0.01, help='lambda coeff')
     parser.add_argument('--weight_decay', dest='weight_decay', type=float, default=0.0005, help='l2 weight decay')
     args = parser.parse_args()
 
-    args.data_dir = utils.ask_openfile(("numpy files","*.npy"))
+    if not args.data_dir:
+        args.data_dir = utils.ask_openfile(("numpy files","*.npy"))
 
     '''print args'''
     for k, v in vars(args).items():
