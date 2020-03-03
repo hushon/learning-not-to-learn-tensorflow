@@ -1,88 +1,54 @@
 import tensorflow as tf
 
-def conv2d(_input,
-           output_dim,
-           kernel_size=(3,3),
-           strides=1,
-           padding='same',
-           use_bias=True,
-           name=None):
-    initializer = tf.truncated_normal_initializer(0., 0.02)
-    _output = tf.layers.conv2d(_input,
-                            filters=output_dim,
-                            kernel_size=kernel_size,
-                            strides=strides,
-                            padding=padding,
-                            use_bias=use_bias,
-                            kernel_initializer=initializer,
-                            name=name)
-    return _output
+class convnet(tf.keras.Model):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.bn0 = tf.keras.layers.BatchNormalization()
+        self.conv1 = tf.keras.layers.Conv2D(32, (5,5), (1,1), 'same')
+        self.relu = tf.keras.layers.ReLU()
+        self.maxpool = tf.keras.layers.MaxPool2D((3,3), 2, 'same')
+        self.conv2 = tf.keras.layers.Conv2D(32, (3,3), (1,1), 'same')
+        self.conv3 = tf.keras.layers.Conv2D(64, (3,3), (2,2), 'same')
+        self.conv4 = tf.keras.layers.Conv2D(64, (3,3), (1,1), 'same')
 
-def batch_norm(_input, is_training, name=None):
-    return tf.layers.batch_normalization(_input,
-                                         momentum=0.99,
-                                         epsilon=1e-3,
-                                         training=is_training,
-                                         fused=None,
-                                         virtual_batch_size=None,
-                                         name=name)
+        self.avgpool = tf.keras.layers.AvgPool2D((7,7), (1,1), 'valid')
+        self.flatten = tf.keras.layers.Flatten()
+        self.fc = tf.keras.layers.Dense(num_classes, activation='softmax')
 
-def maxpool(_input,
-            pool_size=(2,2),
-            strides=2,
-            padding='same',
-            name=None):
-    return tf.layers.MaxPooling2D(pool_size=pool_size,
-                               strides=strides,
-                               padding=padding,
-                               data_format='channels_last',
-                               name=name)(_input)
+    def call(self, x):
+        x = self.bn0(x)
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
 
-def avgpool(_input,
-            pool_size=(2,2),
-            strides=2,
-            padding='same',
-            name=None):
-    return tf.layers.AveragePooling2D(pool_size=pool_size,
-                               strides=strides,
-                               padding=padding,
-                               data_format='channels_last',
-                               name=name)(_input)
+        x = self.conv2(x)
+        x = self.relu(x)
+        feat_out = x
+        x = self.conv3(x)
+        x = self.relu(x)
+        x = self.conv4(x)
+        x = self.relu(x)
 
-def fc(_input, units, name=None):
-    initializer = tf.truncated_normal_initializer(0., 0.02)
-    return tf.layers.Dense(units=units,
-                           use_bias=True,
-                           kernel_initializer=initializer,
-                           name=name)(_input)
+        feat_low = x
+        feat_low = self.avgpool(x)
+        feat_low = self.flatten(x)
+        y_low = self.fc(feat_low)
 
-def f(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name):
-        x = batch_norm(_input, is_training=is_training, name='00_batchnorm')
-        x = conv2d(x, 32, (5,5), name='00_conv')
-        x = tf.nn.relu(x, name='00_relu')
-        x = maxpool(x, (3,3), 2, name='00_maxpool')
-        x = conv2d(x, 32, (3,3), name='01_conv')
-        feat_out = tf.nn.relu(x, name='01_relu')
-        return feat_out
+        return feat_out, y_low
 
-def g(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name):
-        x = conv2d(_input, 64, (3,3), strides=2, name='00_conv')
-        x = tf.nn.relu(x, name='00_relu')
-        x = conv2d(x, 64, (3,3), name='01_conv')
-        feat_low = tf.nn.relu(x, name='01_relu')
-        x = avgpool(feat_low, name='02_avgpool')
-        x = tf.layers.flatten(x, name='02_flatten')
-        x = fc(x, output_dim, name='03_dense')
-        y_low = tf.nn.softmax(x, axis=-1, name='03_softmax')
-        return y_low, x
+class Predictor(tf.keras.Model):
+    def __init__(self, num_classes=8):
+        super().__init__()
+        self.pred_conv1 = tf.keras.layers.Conv2D(32, (3,3), (1,1), 'same')
+        self.pred_bn1 = tf.keras.layers.BatchNormalization()
+        self.relu = tf.keras.layers.ReLU()
+        self.pred_conv2 = tf.keras.layers.Conv1D(num_classes, (3,3), (1,1), 'same')
+        self.softmax = tf.keras.layers.Softmax()
 
-def h(_input, output_dim, is_training, name=None):
-    with tf.variable_scope(name):
-        x = conv2d(_input, 32, (3,3), name='00_conv')
-        x = batch_norm(x, is_training, name='00_batchnorm')
-        x = tf.nn.relu(x, name='00_relu')
-        x = conv2d(x, output_dim, (3,3), name='01_conv')
-        px = tf.nn.softmax(x, axis=-1, name='01_softmax')
-        return px, x
+    def call(self, x):
+        x = self.pred_conv1(x)
+        x = self.pred_bn1(x)
+        x = self.relu(x)
+        x = self.pred_conv2(x)
+        px = self.softmax(x)
+        return x, px
