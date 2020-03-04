@@ -14,6 +14,7 @@ The authors suggest a novel training method such that the classifier model learn
 ## Setup
 - Python 3
 - TensorFlow 2
+- Pillow
 
 ## Download Dataset
 ![Colored-MNIST](./colored-mnist-example.png)
