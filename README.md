@@ -13,8 +13,7 @@ The authors suggest a novel training method such that the classifier model learn
 
 ## Setup
 - Python 3
-- TensorFlow 1.14
-- tqdm
+- TensorFlow 2
 
 ## Download Dataset
 ![Colored-MNIST](./colored-mnist-example.png)

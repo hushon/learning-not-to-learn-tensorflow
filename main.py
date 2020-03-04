@@ -146,6 +146,10 @@ class Trainer(object):
         self.global_step += 1
 
     @tf.function
+    def _train_step_baseline(self, images, labels, bias):
+        pass
+
+    @tf.function
     def _test_step(self, images, labels, bias):
         _, pred_label = self.net(images)
         loss_pred = self.loss_crossentropy(labels, pred_label)
@@ -166,26 +170,28 @@ class Trainer(object):
             tf.summary.scalar("test_classifier_accuracy", self.test_classifier_accuracy.result()*100, step=step)
 
     def train(self):
-
         # restore checkpoint
         self._restore_checkpoint()
 
         # train
-        for epoch in range(self.args.max_epoch):
-            for images, labels, bias in self.train_ds:
-                self._train_step(images, labels, bias)
-                self._write_summary_train(self.global_step)
+        if self.args.train_baseline:
+            pass
+        else:
+            for epoch in range(self.args.max_epoch):
+                for images, labels, bias in self.train_ds:
+                    self._train_step(images, labels, bias)
+                    self._write_summary_train(self.global_step)
 
-            print(f"Epoch: {epoch+1}, "
-                f"Loss: {self.train_loss.result():.4f}, "
-                f"Acc: {self.train_accuracy.result()*100:.4f}")
+                print(f"Epoch: {epoch+1}, "
+                    f"Loss: {self.classifier_loss.result():.4f}, "
+                    f"Acc: {self.classifier_accuracy.result()*100:.4f}")
 
-            # validation
-            if epoch % 5 == 0:
-                for images, labels, bias in self.test_ds:
-                    self._test_step(images, labels, bias)
-                print(f"Test Loss: {self.test_loss.result():.4f}, "
-                    f"Test Acc: {self.test_accuracy.result()*100:.4f}")
+                # validation
+                if epoch % 5 == 0:
+                    for images, labels, bias in self.test_ds:
+                        self._test_step(images, labels, bias)
+                    print(f"Test Loss: {self.test_classifier_loss.result():.4f}, "
+                        f"Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
 
         # save checkpoint
         self._save_checkpoint()
