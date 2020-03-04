@@ -28,7 +28,7 @@ python main.py --phase=train\
                --max_epoch=100\
                --batch_size=128\
                --lr=0.001\
-               --loss_lambda=0.01\
+               --loss_lambda=0.01
 ```
 To train model by baseline method, add `--train_baseline` argument.  
 Once you begin, you can launch TensorBoard on `./logs/` directory to monitor training.
@@ -39,7 +39,7 @@ tensorboard --logdir=./logs/
 ## Test model
 ```
 python main.py --phase=test\
-               --batch_size=128\
+               --batch_size=128
 ```
 
 ## Reference
