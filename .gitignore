@@ -2,5 +2,6 @@ checkpoint/
 dataset/
 logs/
 *.ipynb_checkpoints
+*.ipynb
 *.pyc
 *.npy
