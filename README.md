@@ -1,8 +1,8 @@
 # learning-not-to-learn-tensorflow
 
-This repo is an unofficial TensorFlow implementation of -- [*Learning Not to Learn: 
-Training Deep Neural Networks with Biased Data (CVPR 2019)*](https://arxiv.org/abs/1812.10352)  
-If you are looking for the official PyTorch source from the authors, redirect to [github.com/feidfoe/learning-not-to-learn](https://github.com/feidfoe/learning-not-to-learn)
+This repo is a TensorFlow implementation of a paper presented at CVPR 2019 -- [*Learning Not to Learn: 
+Training Deep Neural Networks with Biased Data*](https://arxiv.org/abs/1812.10352)  
+Please note that this is an unofficial repo and may not fully reproduce the original results. If you are looking for the official PyTorch source from the authors, redirect to [github.com/feidfoe/learning-not-to-learn](https://github.com/feidfoe/learning-not-to-learn)
 
 ## Introduction
 
