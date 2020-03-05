@@ -147,7 +147,14 @@ class Trainer(object):
 
     @tf.function
     def _train_step_baseline(self, images, labels, bias):
-        pass
+        with tf.GradientTape() as tape:
+            _, pred_label = self.net(images)
+            loss_pred = self.sparse_crossentropy(labels, pred_label)
+            gradients = tape.gradient(loss_pred, self.net.trainable_variables)
+            self.optimizer.apply_gradients(zip(gradients, self.net.trainable_variables))
+
+        self.classifier_loss(loss_pred)
+        self.classifier_accuracy(labels, pred_label)
 
     @tf.function
     def _test_step(self, images, labels, bias):
@@ -175,23 +182,25 @@ class Trainer(object):
 
         # train
         if self.args.train_baseline:
-            pass
+            __train_step = self._train_step_baseline
         else:
-            for epoch in range(self.args.max_epoch):
-                for images, labels, bias in self.train_ds:
-                    self._train_step(images, labels, bias)
-                    self._write_summary_train(self.global_step)
+            __train_step = self._train_step
 
-                print(f"Epoch: {epoch+1}, "
-                    f"Loss: {self.classifier_loss.result():.4f}, "
-                    f"Acc: {self.classifier_accuracy.result()*100:.4f}")
+        for epoch in range(self.args.max_epoch):
+            for images, labels, bias in self.train_ds:
+                __train_step(images, labels, bias)
+                self._write_summary_train(self.global_step)
 
-                # validation
-                if epoch % 5 == 0:
-                    for images, labels, bias in self.test_ds:
-                        self._test_step(images, labels, bias)
-                    print(f"Test Loss: {self.test_classifier_loss.result():.4f}, "
-                        f"Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
+            print(f"Epoch: {epoch+1}, "
+                f"Loss: {self.classifier_loss.result():.4f}, "
+                f"Acc: {self.classifier_accuracy.result()*100:.4f}")
+
+            # validation
+            if epoch % 5 == 0:
+                for images, labels, bias in self.test_ds:
+                    self._test_step(images, labels, bias)
+                print(f"Test Loss: {self.test_classifier_loss.result():.4f}, "
+                    f"Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
 
         # save checkpoint
         self._save_checkpoint()
