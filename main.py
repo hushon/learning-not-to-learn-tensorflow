@@ -36,8 +36,8 @@ class Trainer(object):
         self.gradReverse = model.GradientReversalLayer(grad_scaling=0.1)
 
         # loss function
-        self.loss_crossentropy = tf.keras.losses.SparseCategoricalCrossentropy()
-        self.loss_mi = tf.keras.losses.CategoricalCrossentropy()
+        self.sparse_crossentropy = tf.keras.losses.SparseCategoricalCrossentropy()
+        self.crossentropy = tf.keras.losses.CategoricalCrossentropy()
 
         #optimizer
         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(self.args.lr, 40, 0.9)
@@ -102,11 +102,11 @@ class Trainer(object):
             _, pseudo_pred_g = self.pred_net_g(feat_label)
             _, pseudo_pred_b = self.pred_net_b(feat_label)
 
-            loss_pred = self.loss_crossentropy(labels, pred_label)
+            loss_pred = self.sparse_crossentropy(labels, pred_label)
 
-            loss_pseudo_pred_r = self.loss_mi(pseudo_pred_r, pseudo_pred_r)
-            loss_pseudo_pred_g = self.loss_mi(pseudo_pred_g, pseudo_pred_g)
-            loss_pseudo_pred_b = self.loss_mi(pseudo_pred_b, pseudo_pred_b)
+            loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r)
+            loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g)
+            loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b)
             loss_pred_ps_color = (loss_pseudo_pred_r + loss_pseudo_pred_g + loss_pseudo_pred_b) / 3.
 
             loss = loss_pred + loss_pred_ps_color*self.args.loss_lambda
@@ -126,9 +126,9 @@ class Trainer(object):
             pred_g, _ = self.pred_net_g(color_label)
             pred_b, _ = self.pred_net_b(color_label)
 
-            loss_pred_r = self.loss_crossentropy(bias[:, 0], pred_r)
-            loss_pred_g = self.loss_crossentropy(bias[:, 1], pred_g)
-            loss_pred_b = self.loss_crossentropy(bias[:, 2], pred_b)
+            loss_pred_r = self.sparse_crossentropy(bias[:, 0], pred_r)
+            loss_pred_g = self.sparse_crossentropy(bias[:, 1], pred_g)
+            loss_pred_b = self.sparse_crossentropy(bias[:, 2], pred_b)
             loss_pred_color = loss_pred_r + loss_pred_g + loss_pred_b
 
             # TODO: optimizer must update feat_label part of self.net
@@ -152,7 +152,7 @@ class Trainer(object):
     @tf.function
     def _test_step(self, images, labels, bias):
         _, pred_label = self.net(images)
-        loss_pred = self.loss_crossentropy(labels, pred_label)
+        loss_pred = self.sparse_crossentropy(labels, pred_label)
 
         self.test_classifier_loss(loss_pred)
         self.test_classifier_accuracy(labels, pred_label)
