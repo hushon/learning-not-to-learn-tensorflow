@@ -120,11 +120,11 @@ class Trainer(object):
         with tf.GradientTape() as tape:
             feat_label, _ = self.net(images)
 
-            pred_r, _ = self.pred_net_r(feat_label)
-            pred_g, _ = self.pred_net_g(feat_label)
-            pred_b, _ = self.pred_net_b(feat_label)
-
             color_label = self.gradReverse(feat_label)
+
+            pred_r, _ = self.pred_net_r(color_label)
+            pred_g, _ = self.pred_net_g(color_label)
+            pred_b, _ = self.pred_net_b(color_label)
 
             loss_pred_r = self.loss_crossentropy(bias[:, 0], pred_r)
             loss_pred_g = self.loss_crossentropy(bias[:, 1], pred_g)
