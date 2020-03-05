@@ -1,17 +1,18 @@
 import tensorflow as tf
 
 @tf.custom_gradient
-def grad_reverse(x, grad_scaling):
-    grad = lambda dy: -dy * grad_scaling
-    return x, grad
+def grad_reverse(x):
+    grad = lambda dy: -dy * 0.1
+
+    y = tf.identity(x)
+    return y, grad
 
 class GradientReversalLayer(tf.keras.layers.Layer):
-    def __init__(self, grad_scaling=1.0):
+    def __init__(self):
         super().__init__()
-        self.grad_scaling = grad_scaling
 
     def call(self, x):
-        return grad_reverse(x, self.grad_scaling)
+        return grad_reverse(x)
 
 class convnet(tf.keras.Model):
     def __init__(self, num_classes=10):

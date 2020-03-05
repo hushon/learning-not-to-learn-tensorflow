@@ -33,7 +33,7 @@ class Trainer(object):
         self.pred_net_r = model.Predictor(self.args.dim_bias)
         self.pred_net_g = model.Predictor(self.args.dim_bias)
         self.pred_net_b = model.Predictor(self.args.dim_bias)
-        self.gradReverse = model.GradientReversalLayer(grad_scaling=0.1)
+        self.gradReverse = model.GradientReversalLayer()
 
         # loss function
         self.sparse_crossentropy = tf.keras.losses.SparseCategoricalCrossentropy()
