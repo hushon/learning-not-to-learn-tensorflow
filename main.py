@@ -199,6 +199,8 @@ class Trainer(object):
             if epoch % 5 == 0:
                 for images, labels, bias in self.test_ds:
                     self._test_step(images, labels, bias)
+                self.summary_writer_val(self.global_step)
+
                 print(f"Test Loss: {self.test_classifier_loss.result():.4f}, "
                     f"Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
 
@@ -206,7 +208,15 @@ class Trainer(object):
         self._save_checkpoint()
 
     def test(self):
-        pass
+        # restore checkpoint
+        self._restore_checkpoint()
+
+        acc = []
+        for images, labels, bias in self.test_ds:
+            self._test_step(images, labels, bias)
+            acc.append(self.test_classifier_accuracy.result()*100)
+
+        print(f"Avg Test Acc: {np.mean(acc):.4f}")
 
 def main():
     # parse options
