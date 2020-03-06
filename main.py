@@ -155,6 +155,7 @@ class Trainer(object):
 
         self.classifier_loss(loss_pred)
         self.classifier_accuracy(labels, pred_label)
+        self.global_step += 1
 
     @tf.function
     def _test_step(self, images, labels, bias):
