@@ -8,7 +8,7 @@ def quantize(x, dim_bias):
 
 def ask_openfile(filetype=("numpy files","*.npy")):
     root = Tk()
-    filepath = filedialog.askopenfilename(title='Select file', 
+    filepath = filedialog.askopenfilename(title='Select file',
                                             filetypes = [filetype] + [("all files","*.*")])
     filepath = os.path.normpath(filepath)
     root.withdraw()

@@ -55,35 +55,30 @@ class Trainer(object):
         self.test_classifier_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_classifier_accuracy')
 
     def _preprocess_dataset(self):
+
         dataset = np.load(self.args.data_dir, allow_pickle=True, encoding='latin1').item()
-        train_image = dataset['train_image'] / 255.0
-        train_label = dataset['train_label']
-        test_image = dataset['test_image'] / 255.0
-        test_label = dataset['test_label']
 
-        train_bias = []
-        for x in dataset['train_image']:
-            x = np.array(Image.fromarray(x).resize((14,14)))
-            r = utils.quantize(x[..., 0], self.args.dim_bias)
-            g = utils.quantize(x[..., 1], self.args.dim_bias)
-            b = utils.quantize(x[..., 2], self.args.dim_bias)
-            train_bias.append([r,g,b])
-        train_bias = np.array(train_bias)
+        mapfunc = lambda x, y: tf.py_function(self._preprocess, inp = [x, y], Tout = (tf.float32, tf.int8, tf.int32))
 
-        test_bias = []
-        for x in dataset['test_image']:
-            x = np.array(Image.fromarray(x).resize((14,14)))
-            r = utils.quantize(x[..., 0], self.args.dim_bias)
-            g = utils.quantize(x[..., 1], self.args.dim_bias)
-            b = utils.quantize(x[..., 2], self.args.dim_bias)
-            test_bias.append([r,g,b])
-        test_bias = np.array(test_bias)
+        self.train_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
+                                    .map(mapfunc).cache()\
+                                    .shuffle(10000).batch(self.args.batch_size).prefetch(1)
+        self.test_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
+                                    .map(mapfunc).cache()\
+                                    .batch(self.args.batch_size).prefetch(1)
 
-        # tf dataset
-        self.train_ds = tf.data.Dataset.from_tensor_slices((train_image, train_label, train_bias))\
-                                    .shuffle(10000).batch(self.args.batch_size)
-        self.test_ds = tf.data.Dataset.from_tensor_slices((test_image, test_label, test_bias))\
-                                    .batch(self.args.batch_size)
+    def _quantize(self, x):
+        boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
+        return tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
+
+    def _preprocess(self, image, label):
+        image = tf.cast(image, tf.float32)
+        colormap = tf.image.resize(image, (14,14))
+        r = self._quantize(colormap[..., 0])
+        g = self._quantize(colormap[..., 1])
+        b = self._quantize(colormap[..., 2])
+        bias = tf.stack([r, g, b], axis=-1)
+        return (image/255.0, label, bias)
 
     def _restore_checkpoint(self):
         try: self.checkpoint.restore(tf.train.latest_checkpoint(self.args.ckpt_dir))
@@ -126,9 +121,9 @@ class Trainer(object):
             pred_g, _ = self.pred_net_g(color_label)
             pred_b, _ = self.pred_net_b(color_label)
 
-            loss_pred_r = self.sparse_crossentropy(bias[:, 0], pred_r)
-            loss_pred_g = self.sparse_crossentropy(bias[:, 1], pred_g)
-            loss_pred_b = self.sparse_crossentropy(bias[:, 2], pred_b)
+            loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r)
+            loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g)
+            loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b)
             loss_pred_color = loss_pred_r + loss_pred_g + loss_pred_b
 
             # TODO: optimizer must update feat_label part of self.net
