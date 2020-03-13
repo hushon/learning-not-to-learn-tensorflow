@@ -58,13 +58,15 @@ class Trainer(object):
 
         dataset = np.load(self.args.data_dir, allow_pickle=True, encoding='latin1').item()
 
-        mapfunc = lambda x, y: tf.py_function(self._preprocess, inp = [x, y], Tout = (tf.float32, tf.int8, tf.int32))
+        # mapfunc = lambda x, y: tf.py_function(self._preprocess, inp = [x, y], Tout = (tf.float32, tf.int8, tf.int32))
+        boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
+        self._quantize = lambda x: tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
 
         self.train_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
-                                    .map(mapfunc).cache()\
+                                    .map(self._preprocess).cache()\
                                     .shuffle(10000).batch(self.args.batch_size).prefetch(1)
         self.test_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
-                                    .map(mapfunc).cache()\
+                                    .map(self._preprocess).cache()\
                                     .batch(self.args.batch_size).prefetch(1)
 
     def _quantize(self, x):
@@ -195,7 +197,7 @@ class Trainer(object):
             if epoch % 5 == 0:
                 for images, labels, bias in self.test_ds:
                     self._test_step(images, labels, bias)
-                self.summary_writer_val(self.global_step)
+                self._write_summary_val(self.global_step)
 
                 print(f"Test Loss: {self.test_classifier_loss.result():.4f}, "
                     f"Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
