@@ -55,10 +55,7 @@ class Trainer(object):
         self.test_classifier_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_classifier_accuracy')
 
     def _preprocess_dataset(self):
-
         dataset = np.load(self.args.data_dir, allow_pickle=True, encoding='latin1').item()
-
-        # mapfunc = lambda x, y: tf.py_function(self._preprocess, inp = [x, y], Tout = (tf.float32, tf.int8, tf.int32))
         boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
         self._quantize = lambda x: tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
 
