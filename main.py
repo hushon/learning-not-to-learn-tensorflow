@@ -17,7 +17,12 @@ class Trainer(object):
 
         # checkpoint
         self.checkpoint = tf.train.Checkpoint(optimizer=self.optimizer,
-                                            model=self.net)
+                                            net=self.net,
+                                            optimizer_color=self.optimizer_color,
+                                            pred_net_r=self.pred_net_r,
+                                            pred_net_g=self.pred_net_g,
+                                            pred_net_b=self.pred_net_b
+                                            )
 
         # summary writer
         self.summary_writer_train = tf.summary.create_file_writer(
@@ -46,7 +51,9 @@ class Trainer(object):
         lr_schedule_color = tf.keras.optimizers.schedules.ExponentialDecay(self.args.lr, 40, 0.9)
         self.optimizer_color = tf.keras.optimizers.SGD(lr_schedule_color, 0.9)
 
-        # performance metrics
+        # metrics
+        self.global_step = tf.Variable(initial_value=0, trainable=False, dtype=tf.int64)
+
         self.classifier_loss = tf.keras.metrics.Mean(name='classifier_loss')
         self.color_loss = tf.keras.metrics.Mean(name='color_loss')
         self.classifier_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='classifier_accuracy')
@@ -136,8 +143,7 @@ class Trainer(object):
                 + self.pred_net_b.trainable_variables))
 
         self.color_loss(loss_pred_color)
-
-        self.global_step += 1
+        self.global_step = self.global_step.assign_add(1)
 
     @tf.function
     def _train_step_baseline(self, images, labels, bias):
@@ -149,7 +155,7 @@ class Trainer(object):
 
         self.classifier_loss(loss_pred)
         self.classifier_accuracy(labels, pred_label)
-        self.global_step += 1
+        self.global_step = self.global_step.assign_add(1)
 
     @tf.function
     def _test_step(self, images, labels, bias):
