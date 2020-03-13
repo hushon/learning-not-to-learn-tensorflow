@@ -58,9 +58,12 @@ class Trainer(object):
 
         self.classifier_loss = tf.keras.metrics.Mean(name='classifier_loss')
         self.color_loss = tf.keras.metrics.Mean(name='color_loss')
+        self.mi_loss = tf.keras.metrics.Mean(name='mi_loss')
         self.classifier_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='classifier_accuracy')
 
         self.test_classifier_loss = tf.keras.metrics.Mean(name='test_classifier_loss')
+        self.test_color_loss = tf.keras.metrics.Mean(name='test_color_loss')
+        self.test_mi_loss = tf.keras.metrics.Mean(name='test_mi_loss')
         self.test_classifier_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(name='test_classifier_accuracy')
 
     def _preprocess_dataset(self):
@@ -71,7 +74,7 @@ class Trainer(object):
         self.train_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
                                     .map(self._preprocess).cache()\
                                     .shuffle(10000).batch(self.args.batch_size).prefetch(1)
-        self.test_ds = tf.data.Dataset.from_tensor_slices((dataset['train_image'], dataset['train_label']))\
+        self.test_ds = tf.data.Dataset.from_tensor_slices((dataset['test_image'], dataset['test_label']))\
                                     .map(self._preprocess).cache()\
                                     .batch(self.args.batch_size).prefetch(1)
 
@@ -114,6 +117,7 @@ class Trainer(object):
             self.optimizer.apply_gradients(zip(gradients, self.net.trainable_variables))
 
         self.classifier_loss(loss_pred)
+        self.mi_loss(loss_pred_ps_color)
         self.classifier_accuracy(labels, pred_label)
 
         with tf.GradientTape() as tape:
@@ -157,23 +161,48 @@ class Trainer(object):
 
     @tf.function
     def _test_step(self, images, labels, bias):
-        _, pred_label = self.net(images)
+        feat_label, pred_label = self.net(images)
+
+        pred_r, pseudo_pred_r = self.pred_net_r(feat_label)
+        pred_g, pseudo_pred_g = self.pred_net_g(feat_label)
+        pred_b, pseudo_pred_b = self.pred_net_b(feat_label)
+
         loss_pred = self.sparse_crossentropy(labels, pred_label)
 
+        loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r)
+        loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g)
+        loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b)
+        loss_pred_ps_color = (loss_pseudo_pred_r + loss_pseudo_pred_g + loss_pseudo_pred_b) / 3.
+
+        loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r)
+        loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g)
+        loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b)
+        loss_pred_color = loss_pred_r + loss_pred_g + loss_pred_b
+
         self.test_classifier_loss(loss_pred)
+        self.test_mi_loss(loss_pred_ps_color)
+        self.test_color_loss(loss_pred_color)
         self.test_classifier_accuracy(labels, pred_label)
 
     @tf.function
     def _write_summary_train(self, step):
         with self.summary_writer_train.as_default():
-            tf.summary.scalar("classifier_loss", self.classifier_loss.result(), step=step)
-            tf.summary.scalar("classifier_accuracy", self.classifier_accuracy.result()*100, step=step)
+            with tf.name_scope("loss"):
+                tf.summary.scalar("classifier_loss", self.classifier_loss.result(), step=step)
+                tf.summary.scalar("color_loss", self.color_loss.result()*100, step=step)
+                tf.summary.scalar("mi_loss", self.mi_loss.result()*100, step=step)
+            with tf.name_scope("accuracy"):
+                tf.summary.scalar("classifier_accuracy", self.classifier_accuracy.result()*100, step=step)
 
     @tf.function
     def _write_summary_val(self, step):
         with self.summary_writer_val.as_default():
-            tf.summary.scalar("test_classifier_loss", self.test_classifier_loss.result(), step=step)
-            tf.summary.scalar("test_classifier_accuracy", self.test_classifier_accuracy.result()*100, step=step)
+            with tf.name_scope("loss"):
+                tf.summary.scalar("classifier_loss", self.test_classifier_loss.result(), step=step)
+                tf.summary.scalar("color_loss", self.test_color_loss.result()*100, step=step)
+                tf.summary.scalar("mi_loss", self.test_mi_loss.result()*100, step=step)
+            with tf.name_scope("accuracy"):
+                tf.summary.scalar("classifier_accuracy", self.test_classifier_accuracy.result()*100, step=step)
 
     def train(self):
         # restore checkpoint
