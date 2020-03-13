@@ -21,8 +21,9 @@ class Trainer(object):
                                             optimizer_color=self.optimizer_color,
                                             pred_net_r=self.pred_net_r,
                                             pred_net_g=self.pred_net_g,
-                                            pred_net_b=self.pred_net_b
-                                            )
+                                            pred_net_b=self.pred_net_b,
+                                            global_step=self.global_step,
+                                            global_epoch=self.global_epoch)
 
         # summary writer
         self.summary_writer_train = tf.summary.create_file_writer(
@@ -53,6 +54,7 @@ class Trainer(object):
 
         # metrics
         self.global_step = tf.Variable(initial_value=0, trainable=False, dtype=tf.int64)
+        self.global_epoch = tf.Variable(initial_value=0, trainable=False, dtype=tf.int64)
 
         self.classifier_loss = tf.keras.metrics.Mean(name='classifier_loss')
         self.color_loss = tf.keras.metrics.Mean(name='color_loss')
@@ -73,9 +75,9 @@ class Trainer(object):
                                     .map(self._preprocess).cache()\
                                     .batch(self.args.batch_size).prefetch(1)
 
-    def _quantize(self, x):
-        boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
-        return tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
+    # def _quantize(self, x):
+    #     boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
+    #     return tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
 
     def _preprocess(self, image, label):
         image = tf.cast(image, tf.float32)
@@ -87,7 +89,7 @@ class Trainer(object):
         return (image/255.0, label, bias)
 
     def _restore_checkpoint(self):
-        try: self.checkpoint.restore(tf.train.latest_checkpoint(self.args.ckpt_dir))
+        try: self.checkpoint.restore(tf.train.latest_checkpoint(self.args.ckpt_dir)).expect_partial()
         except: print("Could not restore from checkpoint.")
 
     def _save_checkpoint(self):
@@ -187,12 +189,13 @@ class Trainer(object):
         else:
             __train_step = self._train_step
 
-        for epoch in range(self.args.max_epoch):
+        for epoch in range(self.global_epoch.value(), self.args.max_epoch):
             for images, labels, bias in self.train_ds:
                 __train_step(images, labels, bias)
                 self._write_summary_train(self.global_step)
+            self.global_epoch.assign_add(1)
 
-            print(f"Epoch: {epoch+1}, "
+            print(f"Epoch: {epoch}, "
                 f"Loss: {self.classifier_loss.result():.4f}, "
                 f"Acc: {self.classifier_accuracy.result()*100:.4f}")
 
@@ -212,12 +215,10 @@ class Trainer(object):
         # restore checkpoint
         self._restore_checkpoint()
 
-        acc = []
         for images, labels, bias in self.test_ds:
             self._test_step(images, labels, bias)
-            acc.append(self.test_classifier_accuracy.result()*100)
 
-        print(f"Avg Test Acc: {np.mean(acc):.4f}")
+        print(f"Avg Test Acc: {self.test_classifier_accuracy.result()*100:.4f}")
 
 def main():
     # parse options
