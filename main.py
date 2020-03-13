@@ -75,10 +75,6 @@ class Trainer(object):
                                     .map(self._preprocess).cache()\
                                     .batch(self.args.batch_size).prefetch(1)
 
-    # def _quantize(self, x):
-    #     boundaries = list(range(0, 256, 256//self.args.dim_bias))[1:]
-    #     return tf.raw_ops.Bucketize(input=x, boundaries=boundaries)
-
     def _preprocess(self, image, label):
         image = tf.cast(image, tf.float32)
         colormap = tf.image.resize(image, (14,14))
