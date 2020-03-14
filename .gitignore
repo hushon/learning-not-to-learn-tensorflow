@@ -2,6 +2,7 @@ checkpoint/
 dataset/
 logs/
 misc/
+.vscode/
 *.ipynb_checkpoints
 *.ipynb
 *.pyc
