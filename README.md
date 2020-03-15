@@ -7,8 +7,8 @@ Please note that this is an unofficial repo and may not fully reproduce the orig
 
 ![learning-not-to-learn-figure](./figure1.png)
 
-This code demonstrates unlearning of bias from an classification model, particularly under a modified version of MNIST dataset named the Colored-MNIST. Here, the training set is artifically injected with bias such that class categories have strong correlation to color, meanwhile the test set is not contaminated with such bias. In this setting, colors work as false discriminative signal against baseline training methods, and thus results in low test accuracy.  
-The authors propose a novel training method such that the classifier model learns from the training set but *unlearns* from bias. The key ideas are: adoption of a bias prediction model, and a novel regularizing loss function based on mutual information between feature embedding and bias.
+This code demonstrates unlearning of bias from a classification model, particularly under a modified version of MNIST dataset named the Colored-MNIST. Here, the training set is artifically injected with bias such that class categories have strong correlation to color, meanwhile the test set is not contaminated with such bias. In this setting, colors work as false discriminative signal against baseline training methods, thus leading to low test accuracy of the classifier.  
+The authors propose a novel training method such that the classifier model learns from the training data but *unlearns* from bias. The key ideas are: adoption of bias prediction model, and a regularizing loss function based on mutual information between feature embedding and bias. The bias predictor is trained to predict bias label from features extracted from the classifier. The classifer is trained adversarially against the bias predictor so that extracted feature lose correlation to bias.
 
 ## Setup
 

@@ -70,7 +70,7 @@ class Trainer(object):
         for metric in self.train_metrics.values():
             metric.reset_states()
 
-    def _rest_test_metrics(self):
+    def _reset_test_metrics(self):
         for metric in self.test_metrics.values():
             metric.reset_states()
 
@@ -224,12 +224,11 @@ class Trainer(object):
             __train_step = self._train_step
 
         for epoch in range(self.global_epoch.value(), self.args.max_epoch):
-            self._reset_train_metrics()
-
             for batch in self.train_ds:
+                self._reset_train_metrics()
                 __train_step(*batch)
+                self._write_summary_train(self.global_step)
 
-            self._write_summary_train(self.global_step)
             self.global_epoch.assign_add(1)
 
             print(f"Epoch: {epoch}, "
@@ -238,7 +237,7 @@ class Trainer(object):
 
             # validation
             if epoch % 5 == 0:
-                self._rest_test_metrics()
+                self._reset_test_metrics()
                 for batch in self.test_ds:
                     self._test_step(*batch)
                 self._write_summary_val(self.global_step)
@@ -255,7 +254,7 @@ class Trainer(object):
         # restore checkpoint
         self._restore_checkpoint()
 
-        self._rest_test_metrics()
+        self._reset_test_metrics()
         for batch in self.test_ds:
             self._test_step(*batch)
 
