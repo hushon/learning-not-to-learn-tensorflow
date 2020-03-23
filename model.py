@@ -2,8 +2,9 @@ import tensorflow as tf
 
 @tf.custom_gradient
 def grad_reverse(x):
+    scale = 0.1
     y = tf.identity(x)
-    grad = lambda dy: -dy * 0.1
+    grad = lambda dy: -dy * scale
     return y, grad
 
 class GradientReversalLayer(tf.keras.layers.Layer):
