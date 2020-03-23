@@ -28,20 +28,22 @@ Please refer to the paper for more information on the dataset.
 Train model by learning-not-to-learn method.
 
 ``` bash
-python main.py --phase=train\
-               --max_epoch=100\
-               --batch_size=128\
-               --lr=0.001\
+python main.py --phase=train \
+               --data_dir=./dataset/colored-mnist/{FILENAME}.npy \
+               --max_epoch=100 \
+               --batch_size=128 \
+               --lr=0.001 \
                --loss_lambda=0.01
 ```
 
 To train model by baseline method, add `--train_baseline` argument.  
 
 ``` bash
-python main.py --phase=train\
-               --max_epoch=100\
-               --batch_size=128\
-               --lr=0.001\
+python main.py --phase=train \
+               --data_dir=./dataset/colored-mnist/{FILENAME}.npy \
+               --max_epoch=100 \
+               --batch_size=128 \
+               --lr=0.001 \
                --train_baseline
 ```
 
@@ -54,7 +56,8 @@ tensorboard --logdir=./logs/
 ## Test model
 
 ``` bash
-python main.py --phase=test\
+python main.py --phase=test \
+               --data_dir=./dataset/colored-mnist/{FILENAME}.npy \
                --batch_size=128
 ```
 
