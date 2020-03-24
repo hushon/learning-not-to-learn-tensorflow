@@ -89,11 +89,13 @@ class Trainer(object):
     def _preprocess(self, image, label):
         image = tf.cast(image, tf.float32)
         colormap = tf.image.resize(image, (14,14))
-        r = self._quantize(colormap[..., 0])
-        g = self._quantize(colormap[..., 1])
-        b = self._quantize(colormap[..., 2])
-        bias = tf.stack([r, g, b], axis=-1)
-        return (image/255.0, label, bias)
+        bias = self._quantize(colormap)
+        mask = tf.cast(tf.math.greater(colormap, 0.0), tf.float32)
+        # r = self._quantize(colormap[..., 0])
+        # g = self._quantize(colormap[..., 1])
+        # b = self._quantize(colormap[..., 2])
+        # bias = tf.stack([r, g, b], axis=-1)
+        return (image/255.0, label, bias, mask)
 
     def _restore_checkpoint(self):
         try: self.checkpoint.restore(tf.train.latest_checkpoint(self.args.ckpt_dir)).expect_partial()
@@ -104,7 +106,7 @@ class Trainer(object):
         self.checkpoint.save(file_prefix=checkpoint_prefix)
 
     @tf.function
-    def _train_step(self, images, labels, bias):
+    def _train_step(self, images, labels, bias, mask):
         with tf.GradientTape() as tape:
             feat_label, pred_label = self.net(images)
 
@@ -112,11 +114,11 @@ class Trainer(object):
             _, pseudo_pred_g = self.pred_net_g(feat_label)
             _, pseudo_pred_b = self.pred_net_b(feat_label)
 
-            loss_pred = self.sparse_crossentropy(labels, pred_label)
+            loss_pred = self.sparse_crossentropy(labels, pred_label, sample_weight=mask)
 
-            loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r)
-            loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g)
-            loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b)
+            loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r, sample_weight=mask)
+            loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g, sample_weight=mask)
+            loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b, sample_weight=mask)
             loss_pred_ps_color = (loss_pseudo_pred_r + loss_pseudo_pred_g + loss_pseudo_pred_b) / 3.
 
             loss = loss_pred + loss_pred_ps_color*self.args.loss_lambda
@@ -137,9 +139,9 @@ class Trainer(object):
             pred_g, _ = self.pred_net_g(color_label)
             pred_b, _ = self.pred_net_b(color_label)
 
-            loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r)
-            loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g)
-            loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b)
+            loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r, sample_weight=mask)
+            loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g, sample_weight=mask)
+            loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b, sample_weight=mask)
             loss_pred_color = loss_pred_r + loss_pred_g + loss_pred_b
 
             # TODO: optimizer must update feat_label part of self.net
@@ -156,10 +158,10 @@ class Trainer(object):
         self.global_step = self.global_step.assign_add(1)
 
     @tf.function
-    def _train_step_baseline(self, images, labels, bias):
+    def _train_step_baseline(self, images, labels, bias, mask):
         with tf.GradientTape() as tape:
             _, pred_label = self.net(images)
-            loss_pred = self.sparse_crossentropy(labels, pred_label)
+            loss_pred = self.sparse_crossentropy(labels, pred_label, sample_weight=mask)
             gradients = tape.gradient(loss_pred, self.net.trainable_variables)
             self.optimizer.apply_gradients(zip(gradients, self.net.trainable_variables))
 
@@ -168,23 +170,23 @@ class Trainer(object):
         self.global_step = self.global_step.assign_add(1)
 
     @tf.function
-    def _test_step(self, images, labels, bias):
+    def _test_step(self, images, labels, bias, mask):
         feat_label, pred_label = self.net(images)
 
         pred_r, pseudo_pred_r = self.pred_net_r(feat_label)
         pred_g, pseudo_pred_g = self.pred_net_g(feat_label)
         pred_b, pseudo_pred_b = self.pred_net_b(feat_label)
 
-        loss_pred = self.sparse_crossentropy(labels, pred_label)
+        loss_pred = self.sparse_crossentropy(labels, pred_label, sample_weight=mask)
 
-        loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r)
-        loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g)
-        loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b)
+        loss_pseudo_pred_r = self.crossentropy(pseudo_pred_r, pseudo_pred_r, sample_weight=mask)
+        loss_pseudo_pred_g = self.crossentropy(pseudo_pred_g, pseudo_pred_g, sample_weight=mask)
+        loss_pseudo_pred_b = self.crossentropy(pseudo_pred_b, pseudo_pred_b, sample_weight=mask)
         loss_pred_ps_color = (loss_pseudo_pred_r + loss_pseudo_pred_g + loss_pseudo_pred_b) / 3.
 
-        loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r)
-        loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g)
-        loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b)
+        loss_pred_r = self.sparse_crossentropy(bias[..., 0], pred_r, sample_weight=mask)
+        loss_pred_g = self.sparse_crossentropy(bias[..., 1], pred_g, sample_weight=mask)
+        loss_pred_b = self.sparse_crossentropy(bias[..., 2], pred_b, sample_weight=mask)
         loss_pred_color = loss_pred_r + loss_pred_g + loss_pred_b
 
         self.test_metrics["test_classifier_loss"].update_state(loss_pred)
